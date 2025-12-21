@@ -2,8 +2,11 @@ import { MonacoEditorReactComp } from "@typefox/monaco-editor-react";
 import type {
   EditorAppConfig,
   EditorApp,
+  TextContents,
 } from "monaco-languageclient/editorApp";
 import type { MonacoVscodeApiConfig } from "monaco-languageclient/vscodeApiWrapper";
+import { useState } from "react";
+import { createWgslConfigSimple } from "./wgslConfigSimple";
 
 export interface MonacoEditorProps {
   language?: string;
@@ -23,35 +26,37 @@ export default function MonacoEditor({
   minimap = { enabled: true },
   onEditorStartDone,
 }: MonacoEditorProps) {
-  // Use the configured worker factory from monaco-worker-setup.ts
-  // Workers are already configured, but we pass the factory function for consistency
+  const [codeState, setCodeState] = useState<string>(value);
+  const [triggerReprocessConfig, setTriggerReprocessConfig] =
+      useState<number>(0);
 
-  const vscodeApiConfig: MonacoVscodeApiConfig = {
-    $type: "classic",
-    viewsConfig: { $type: "EditorService" },
+  const onTextChanged = (textChanges: TextContents) => {
+      if (textChanges.modified !== codeState) {
+          setCodeState(textChanges.modified as string);
+      }
   };
 
-  const editorAppConfig: EditorAppConfig = {
-    codeResources: {
-      modified: {
-        uri: `/workspace/main.${language}`,
-        text: value,
+  const appConfig = createWgslConfigSimple({
+      codeContent: {
+          text: codeState,
+          uri: "/workspace/shader.wgsl",
       },
-    },
-    readOnly,
-    editorOptions: {
-      theme,
-      minimap,
-      language,
-    },
-  };
+  });
 
   return (
-    <MonacoEditorReactComp
-      vscodeApiConfig={vscodeApiConfig}
-      editorAppConfig={editorAppConfig}
-      style={{ width: "100%", height: "100%", opacity: 0.95 }}
-      onEditorStartDone={onEditorStartDone}
-    />
+      <MonacoEditorReactComp
+          style={{ height: "70vh" }}
+          vscodeApiConfig={appConfig.vscodeApiConfig}
+          editorAppConfig={appConfig.editorAppConfig}
+          // No languageClientConfig - using built-in WGSL support only!
+          onTextChanged={onTextChanged}
+          triggerReprocessConfig={triggerReprocessConfig}
+          onConfigProcessed={() =>
+              console.log(" >>> WGSL config processed <<<")
+          }
+          onEditorStartDone={() =>
+              console.log(" >>> WGSL editor started <<<")
+          }
+      />
   );
 }
