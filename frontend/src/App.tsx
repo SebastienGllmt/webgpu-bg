@@ -107,7 +107,6 @@ function App() {
             language="wgsl"
             theme="vs-dark"
             value={text}
-            height="100%"
           />
         </div>
       </div>
