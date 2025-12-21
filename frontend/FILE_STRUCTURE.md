@@ -11,14 +11,13 @@ frontend/
 │   │   └── gfx.js              # Source: WebGPU/WASI bindings (source code)
 │   ├── wasm/
 │   │   └── generated/          # Generated: Output from jco transpile
-│   │       ├── triangle.js      # Transpiled JavaScript bindings
+│   │       ├── triangle.js      # Transpiled JavaScript bindings (imports ../../lib/gfx.js)
 │   │       ├── triangle.d.ts    # TypeScript definitions
 │   │       ├── triangle.core.wasm
-│   │       ├── gfx.js           # Copied from src/lib/gfx.js (for relative imports)
 │   │       └── interfaces/      # Generated interface definitions
 │   ├── App.tsx                  # Uses @wasm/triangle.js
 │   └── ...
-├── public/                      # Static assets (no gfx.js here anymore)
+├── public/                      # Static assets
 └── ...
 ```
 
@@ -36,11 +35,12 @@ frontend/
 - Follows Vite conventions (generated files in `src/`)
 - Added to `.gitignore` (regenerated on each build)
 
-### 3. **Why Copy `gfx.js` to Generated Directory?**
-- The generated `triangle.js` imports `./gfx.js` (relative import)
-- `jco transpile` mappings use `./gfx.js` relative to output directory
-- So `gfx.js` must be in the same directory as generated files
-- This is a **build-time copy**, not duplication in source
+### 3. **Direct Reference to Source `gfx.js`**
+- The generated `triangle.js` imports `../../lib/gfx.js` (relative import)
+- From `src/wasm/generated/` to `src/lib/` requires going up two levels
+- `jco transpile` mappings use `../../lib/gfx.js` to reference the source file
+- No copying needed - direct reference to source location
+- Vite resolves the import path correctly at build time
 
 ### 4. **No More `examples/static/`**
 - This was a legacy directory name from another PoC
@@ -70,22 +70,22 @@ The `@wasm` alias resolves to `src/wasm/generated/`, configured in:
 
 1. **Plugin runs `jco transpile`**:
    - Outputs to `src/wasm/generated/`
-   - Copies `src/lib/gfx.js` → `src/wasm/generated/gfx.js`
+   - Maps WASI interfaces to `../lib/gfx.js` (relative path to source)
 
 2. **Vite processes imports**:
    - `@wasm/triangle.js` → `src/wasm/generated/triangle.js`
-   - Generated code imports `./gfx.js` (relative, works!)
+   - Generated code imports `../../lib/gfx.js` (relative path, resolved by Vite)
 
 3. **No duplication**:
    - Single source: `src/lib/gfx.js`
-   - Build-time copy to generated directory (for relative imports)
+   - Direct reference from generated code (no copying)
    - Clean separation of concerns
 
 ## Benefits
 
 ✅ **Vite-idiomatic**: Follows standard Vite project structure  
 ✅ **Clear separation**: Source vs generated files  
-✅ **No duplication**: Single source of truth for `gfx.js`  
+✅ **No duplication**: Single source of truth, direct reference (no copying)  
 ✅ **Type-safe**: TypeScript paths configured correctly  
 ✅ **Maintainable**: Clear organization, easy to understand  
 ✅ **Git-friendly**: Generated files in `.gitignore`

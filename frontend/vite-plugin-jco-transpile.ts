@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite'
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, copyFileSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
 /**
@@ -24,7 +24,6 @@ export function jcoTranspilePlugin(): Plugin {
       const wasmPath = join(process.cwd(), '../bg/bin/triangle.wasm')
       const outputDir = join(process.cwd(), 'src/wasm/generated')
       const gfxSource = join(process.cwd(), 'src/lib/gfx.js')
-      const gfxDest = join(outputDir, 'gfx.js')
 
       // Check if WASM file exists
       if (!existsSync(wasmPath)) {
@@ -68,25 +67,24 @@ export function jcoTranspilePlugin(): Plugin {
           '--map', 'wasi:random/*=https://cdn.jsdelivr.net/npm/@bytecodealliance/preview2-shim/lib/browser/random.js#*',
           '--map', 'wasi:cli/*=https://cdn.jsdelivr.net/npm/@bytecodealliance/preview2-shim/lib/browser/cli.js#*',
           '--map', 'wasi:sockets/*=https://cdn.jsdelivr.net/npm/@bytecodealliance/preview2-shim/lib/browser/sockets.js#*',
-          '--map', 'wasi:io/poll=./gfx.js#poll',
-          '--map', 'wasi:webgpu/webgpu=./gfx.js',
-          '--map', 'wasi:surface/surface=./gfx.js',
-          '--map', 'wasi:graphics-context/graphics-context=./gfx.js',
-          '--map', 'wasi:frame-buffer/frame-buffer=./gfx.js',
+          // Map to source gfx.js using relative path from generated directory
+          // From src/wasm/generated/ to src/lib/ requires going up two levels
+          '--map', 'wasi:io/poll=../../lib/gfx.js#poll',
+          '--map', 'wasi:webgpu/webgpu=../../lib/gfx.js',
+          '--map', 'wasi:surface/surface=../../lib/gfx.js',
+          '--map', 'wasi:graphics-context/graphics-context=../../lib/gfx.js',
+          '--map', 'wasi:frame-buffer/frame-buffer=../../lib/gfx.js',
         ].join(' ')
+
+        // Verify gfx.js exists before transpiling
+        if (!existsSync(gfxSource)) {
+          throw new Error(`gfx.js not found at ${gfxSource}. Make sure src/lib/gfx.js exists.`)
+        }
 
         execSync(command, {
           cwd: process.cwd(),
           stdio: 'inherit',
         })
-
-        // Copy gfx.js to output directory (jco expects it relative to output)
-        if (existsSync(gfxSource)) {
-          copyFileSync(gfxSource, gfxDest)
-          console.log('[jco-transpile] Copied gfx.js to output directory')
-        } else {
-          console.warn(`[jco-transpile] gfx.js not found at ${gfxSource}`)
-        }
 
         console.log('[jco-transpile] Transpilation complete!')
       } catch (error) {
