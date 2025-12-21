@@ -19,17 +19,35 @@ mod bindings {
 }
 
 use bindings::wasi::{graphics_context::graphics_context, surface::surface, webgpu::webgpu};
+use std::sync::Mutex;
 
 struct ExampleTriangle;
 
+// Shared state for shader code that can be updated from multiple functions
+static SHADER_STATE: Mutex<Option<String>> = Mutex::new(None);
+
 impl bindings::Guest for ExampleTriangle {
     fn run(input: String) {
-        draw_triangle(&input);
+        // Initialize shader from input, or use default if empty
+        let initial_shader = if input.is_empty() {
+            get_default_shader().to_string()
+        } else {
+            input
+        };
+        
+        // Set the initial shader in shared state
+        *SHADER_STATE.lock().unwrap() = Some(initial_shader);
+        
+        draw_triangle();
+    }
+    
+    fn update_shader(shader_code: String) {
+        // Update the shader code in shared state
+        *SHADER_STATE.lock().unwrap() = Some(shader_code);
     }
 }
 
-
-const SHADER_CODE: &str = r#"
+const DEFAULT_SHADER: &str = r#"
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
     let x = f32(i32(in_vertex_index) - 1);
@@ -43,7 +61,11 @@ fn fs_main() -> @location(0) vec4<f32> {
 }
 "#;
 
-fn draw_triangle(input: &str) {
+fn get_default_shader() -> &'static str {
+    DEFAULT_SHADER
+}
+
+fn draw_triangle() {
     let gpu = webgpu::get_gpu();
     let adapter = gpu.request_adapter(None).unwrap();
     let device = adapter.request_device(None).unwrap();
@@ -72,51 +94,77 @@ fn draw_triangle(input: &str) {
         &resize_pollable,
         &frame_pollable,
     ];
+    
+    // Cached resources - only recreate when shader code changes
+    let mut cached_shader_code: Option<String> = None;
+    let mut cached_vertex_module: Option<webgpu::GpuShaderModule> = None;
+    let mut cached_fragment_module: Option<webgpu::GpuShaderModule> = None;
+    let mut cached_pipeline: Option<webgpu::GpuRenderPipeline> = None;
+    let pipeline_layout = device.create_pipeline_layout(&webgpu::GpuPipelineLayoutDescriptor {
+        label: None,
+        bind_group_layouts: vec![],
+    });
+    
     loop {
-        let vertex = webgpu::GpuVertexState {
-            module: &device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
-                code: SHADER_CODE.to_string(),
+        // Check if shader code has changed
+        let current_shader_code = {
+            let state = SHADER_STATE.lock().unwrap();
+            state.clone().unwrap_or_else(|| get_default_shader().to_string())
+        };
+        
+        // Only recreate shader modules and pipeline if shader code changed
+        let shader_changed = cached_shader_code.as_ref().map(|s| s != &current_shader_code).unwrap_or(true);
+        
+        if shader_changed {
+            // Create new shader modules
+            cached_vertex_module = Some(device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
+                code: current_shader_code.clone(),
                 label: None,
                 compilation_hints: None,
-            }),
-            entry_point: Some("vs_main".to_string()),
-            buffers: None,
-            constants: None,
-        };
-        let fragment = webgpu::GpuFragmentState {
-            module: &device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
-                code: SHADER_CODE.to_string(),
+            }));
+            cached_fragment_module = Some(device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
+                code: current_shader_code.clone(),
                 label: None,
                 compilation_hints: None,
-            }),
-            entry_point: Some("fs_main".to_string()),
-            targets: vec![Some(webgpu::GpuColorTargetState {
-                format: webgpu::GpuTextureFormat::Bgra8unorm,
-                blend: None,
-                write_mask: None,
-            })],
-            constants: None,
-        };
-        let pipeline_layout = device.create_pipeline_layout(&webgpu::GpuPipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: vec![],
-        });
-        let pipeline_description = webgpu::GpuRenderPipelineDescriptor {
-            label: None,
-            vertex,
-            fragment: Some(fragment),
-            primitive: Some(webgpu::GpuPrimitiveState {
-                topology: Some(webgpu::GpuPrimitiveTopology::TriangleList),
-                strip_index_format: None,
-                front_face: None,
-                cull_mode: None,
-                unclipped_depth: None,
-            }),
-            depth_stencil: None,
-            multisample: None,
-            layout: webgpu::GpuLayoutMode::Specific(&pipeline_layout),
-        };
-        let render_pipeline = device.create_render_pipeline(pipeline_description);
+            }));
+            
+            // Create new render pipeline
+            let vertex = webgpu::GpuVertexState {
+                module: cached_vertex_module.as_ref().unwrap(),
+                entry_point: Some("vs_main".to_string()),
+                buffers: None,
+                constants: None,
+            };
+            let fragment = webgpu::GpuFragmentState {
+                module: cached_fragment_module.as_ref().unwrap(),
+                entry_point: Some("fs_main".to_string()),
+                targets: vec![Some(webgpu::GpuColorTargetState {
+                    format: webgpu::GpuTextureFormat::Bgra8unorm,
+                    blend: None,
+                    write_mask: None,
+                })],
+                constants: None,
+            };
+            let pipeline_description = webgpu::GpuRenderPipelineDescriptor {
+                label: None,
+                vertex,
+                fragment: Some(fragment),
+                primitive: Some(webgpu::GpuPrimitiveState {
+                    topology: Some(webgpu::GpuPrimitiveTopology::TriangleList),
+                    strip_index_format: None,
+                    front_face: None,
+                    cull_mode: None,
+                    unclipped_depth: None,
+                }),
+                depth_stencil: None,
+                multisample: None,
+                layout: webgpu::GpuLayoutMode::Specific(&pipeline_layout),
+            };
+            cached_pipeline = Some(device.create_render_pipeline(pipeline_description));
+            cached_shader_code = Some(current_shader_code);
+        }
+        
+        let render_pipeline = cached_pipeline.as_ref().unwrap();
         let pollables_res = ::wasi::io::poll::poll(&pollables);
 
         if pollables_res.contains(&0) {

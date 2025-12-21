@@ -6,4 +6,5 @@ world example {
     import wasi:surface/surface@0.0.1;
     
     export run: func(input: string);
+    export update-shader: func(shader-code: string);
 }
