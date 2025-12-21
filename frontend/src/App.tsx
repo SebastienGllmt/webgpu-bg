@@ -84,17 +84,32 @@ function App() {
   //   return <div>Loading WASM component...</div>
   // }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div style={{ flex: '0 0 auto' }}>
-        <TerminalComponent />
-      </div>
-      <div style={{ flex: '1', minHeight: 0, position: 'relative' }}>
-        <MonacoEditor
-          language="wgsl"
-          theme="vs-dark"
-          value={text}
-          height="100%"
-        />
+    <div style={{ 
+      padding: '24px', 
+      boxSizing: 'border-box', 
+      height: '100vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'stretch'
+    }}>
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100%',
+        width: '100%',
+        maxWidth: 'none'
+      }}>
+        <div style={{ flex: '0 0 auto', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <TerminalComponent />
+        </div>
+        <div style={{ flex: '1', minHeight: 0, position: 'relative', width: '100%' }}>
+          <MonacoEditor
+            language="wgsl"
+            theme="vs-dark"
+            value={text}
+            height="100%"
+          />
+        </div>
       </div>
     </div>
   )
