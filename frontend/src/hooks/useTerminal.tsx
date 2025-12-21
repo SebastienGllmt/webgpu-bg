@@ -11,21 +11,17 @@ class DisposableTerminal extends Terminal {
   }
 }
 export function useTerminal<T extends HTMLElement>(ref: RefObject<T | null>) {
-  // Track the actual element so we can react to when it becomes available
-  // Initialize to null - we'll update it in the effect
+  // Track the ref.current (which can't be tracked automatically by React)
   const [element, setElement] = useState<T | null>(null);
 
   // Update element state when ref.current changes
-  // useEffect runs after the DOM is updated, ensuring ref.current is set
-  // React will prevent unnecessary re-renders if the value hasn't actually changed
-  // We intentionally omit the dependency array to check ref.current on every render
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // note: useLayoutEffect to avoid the terminal briefly showing an error message saying it's not attached to a ref
   useLayoutEffect(() => {
     const current = ref.current;
     if (current !== null) {
       setElement(current);
     }
-  });
+  }, [ref]);
 
   const factory = useCallback(async () => {
     // Get the current ref value at call time, not closure time
@@ -34,7 +30,7 @@ export function useTerminal<T extends HTMLElement>(ref: RefObject<T | null>) {
       throw new Error('Terminal ref is not available');
     }
   
-    // Initialize ghostty-web only once globally, even if we close and recreate the terminal later
+    // Initialize ghostty-web only once globally, even if we close & recreate the terminal later
     if (!ghosttyInitialized) {
       await init();
       ghosttyInitialized = true;
