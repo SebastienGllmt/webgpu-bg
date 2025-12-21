@@ -39,11 +39,11 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) ve
 
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    return vec4<f32>(1.0, 0.0, 1.0, 1.0);
 }
 @fragment
 fn fs_green() -> @location(0) vec4<f32> {
-    return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+    return vec4<f32>(1.0, 1.0, 0.0, 1.0);
 }
 "#;
 
@@ -105,7 +105,7 @@ fn draw_triangle() {
                 .to_string(),
             ),
             targets: vec![Some(webgpu::GpuColorTargetState {
-                format: webgpu::GpuTextureFormat::Bgra8unormSrgb,
+                format: webgpu::GpuTextureFormat::Bgra8unorm,
                 blend: None,
                 write_mask: None,
             })],
