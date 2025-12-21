@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "//": "replace dev and build commands with bunx once bun can run jco",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
