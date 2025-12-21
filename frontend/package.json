@@ -11,9 +11,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@typefox/monaco-editor-react": "^7.2.0",
     "ghostty-web": "^0.4.0",
+    "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@23.3.0",
+    "monaco-languageclient": "^10.2.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "vscode": "npm:@codingame/monaco-vscode-extension-api@23.3.0"
   },
   "devDependencies": {
     "@bytecodealliance/jco": "^1.15.4",
@@ -31,6 +35,9 @@
     "vite": "npm:rolldown-vite@7.2.5"
   },
   "overrides": {
+    "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@23.3.0",
+    "@codingame/monaco-vscode-editor-api": "23.3.0",
+    "@codingame/monaco-vscode-extension-api": "23.3.0",
     "vite": "npm:rolldown-vite@7.2.5"
   }
 }

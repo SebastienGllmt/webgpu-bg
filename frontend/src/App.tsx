@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TerminalComponent from './useTerminal.js'
+import MonacoEditor from './components/MonacoEditor'
 
 
 function BrowserCompatibilityError() {
@@ -42,7 +43,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 `;
 
 function App() {
-  const [wasmLoaded, setWasmLoaded] = useState(false)
+  const [text] = useState(DEFAULT_SHADER)
 
   // Check for WebAssembly.Suspending support
   const isWebAssemblySupported = typeof WebAssembly !== 'undefined' && 
@@ -65,7 +66,6 @@ function App() {
         // Pass a string argument to the run function
         await wasmModule.run(DEFAULT_SHADER)
         console.log('WASM component loaded and running!')
-        setWasmLoaded(true)
       } catch (error) {
         console.error('Failed to run WASM component:', error)
       }
@@ -84,9 +84,19 @@ function App() {
   //   return <div>Loading WASM component...</div>
   // }
   return (
-    <>
-      <TerminalComponent />
-    </>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <div style={{ flex: '0 0 auto' }}>
+        <TerminalComponent />
+      </div>
+      <div style={{ flex: '1', minHeight: 0, position: 'relative' }}>
+        <MonacoEditor
+          language="wgsl"
+          theme="vs-dark"
+          value={text}
+          height="100%"
+        />
+      </div>
+    </div>
   )
 }
 

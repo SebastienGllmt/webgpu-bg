@@ -62,9 +62,7 @@ export function useTerminal<T extends HTMLElement>(ref: RefObject<T | null>) {
 function initTerminal(): DisposableTerminal {
   // Create and configure the terminal
   const term = new DisposableTerminal({
-    fontSize: 14, // 1:100, 14:800, 15:900
-    cols: 100, // cols * 8
-    rows: 50, // height = fontSize * rows
+    fontSize: 14,
     theme: {
       background: '#1a1b26',
       foreground: '#a9b1d6',

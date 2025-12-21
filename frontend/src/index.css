@@ -45,7 +45,7 @@ body > canvas {
   /* FitAddon needs the container to have dimensions to calculate terminal size */
   /* Make it responsive but ensure it has a minimum size for FitAddon calculations */
   width: min(800px, 90vw);
-  height: min(600px, 80vh);
+  height: min(600px, 25vh);
   min-width: 400px;
   min-height: 300px;
   opacity: 0.8;
