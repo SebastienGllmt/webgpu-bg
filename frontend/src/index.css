@@ -48,6 +48,7 @@ body > canvas {
   height: min(600px, 80vh);
   min-width: 400px;
   min-height: 300px;
+  opacity: 0.8;
 }
 
 .terminal-content textarea {
