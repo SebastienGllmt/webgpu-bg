@@ -21,7 +21,7 @@ export function jcoTranspilePlugin(): Plugin {
       if (hasRun) return
       hasRun = true
 
-      const wasmPath = join(process.cwd(), '../bg/bin/triangle.wasm')
+      const wasmPath = join(process.cwd(), '../bg/basic_triangle/bin/component.wasm')
       const outputDir = join(process.cwd(), 'src/wasm/generated')
       const gfxSource = join(process.cwd(), 'src/lib/gfx.js')
 
