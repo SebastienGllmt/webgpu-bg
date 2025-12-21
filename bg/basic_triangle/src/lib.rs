@@ -1,5 +1,5 @@
 mod bindings {
-    // putting in seperate module to avoid clash with other wasi crate
+    // putting in separate module to avoid clash with other wasi crate
     wit_bindgen::generate!({
         path: "wit",
         world: "example:example/example",
