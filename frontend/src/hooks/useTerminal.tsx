@@ -1,58 +1,61 @@
-import { useEffect, useRef } from 'react';
 import { init, Terminal } from 'ghostty-web';
+import { useAsyncResource } from './useAsyncResource';
+import type { RefObject } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 
 let ghosttyInitialized = false;
 
-export default function TerminalComponent() {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const terminalInstanceRef = useRef<Terminal | null>(null);
+class DisposableTerminal extends Terminal {
+  [Symbol.dispose]() {
+    this.dispose();
+  }
+}
+export function useTerminal<T extends HTMLElement>(ref: RefObject<T | null>) {
+  // Track the actual element so we can react to when it becomes available
+  // Initialize to null - we'll update it in the effect
+  const [element, setElement] = useState<T | null>(null);
 
-  useEffect(() => {
-    const initializeTerminal = async () => {
-      if (!terminalRef.current) {
-        return;
-      }
+  // Update element state when ref.current changes
+  // useEffect runs after the DOM is updated, ensuring ref.current is set
+  // React will prevent unnecessary re-renders if the value hasn't actually changed
+  // We intentionally omit the dependency array to check ref.current on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const current = ref.current;
+    if (current !== null) {
+      setElement(current);
+    }
+  });
 
-      try {
-        // Initialize ghostty-web only once
-        if (!ghosttyInitialized) {
-          await init();
-          ghosttyInitialized = true;
-        }
+  const factory = useCallback(async () => {
+    // Get the current ref value at call time, not closure time
+    const currentElement = element;
+    if (!currentElement) {
+      throw new Error('Terminal ref is not available');
+    }
+  
+    // Initialize ghostty-web only once globally, even if we close and recreate the terminal later
+    if (!ghosttyInitialized) {
+      await init();
+      ghosttyInitialized = true;
+    }
 
-        const term = initTerminal();
+    const term = initTerminal();
+    term.open(currentElement);
 
-        // Open terminal in the DOM element
-        term.open(terminalRef.current);
-        terminalInstanceRef.current = term;
+    // Write initial message
+    term.write('Component Terminal - Type "help" for available commands\r\n');
+    term.write('$ ');
 
-        // Write initial message
-        term.write('Component Terminal - Type "help" for available commands\r\n');
-        term.write('$ ');
-      } catch (error) {
-        console.error('Failed to initialize terminal:', error);
-      }
-    };
+    return term;
+  }, [element]);
 
-    initializeTerminal();
-
-    // Cleanup function
-    return () => {
-      // Clean up terminal instance if needed
-      if (terminalInstanceRef.current) {
-        // Note: ghostty-web may not have a cleanup method, but we store the ref
-        // in case you need to access it later or add cleanup logic
-        terminalInstanceRef.current = null;
-      }
-    };
-  }, []);
-
-  return <div id="terminal-content" ref={terminalRef} />;
+  return useAsyncResource(factory);
 }
 
-function initTerminal(): Terminal {
+function initTerminal(): DisposableTerminal {
   // Create and configure the terminal
-  const term = new Terminal({
+  const term = new DisposableTerminal({
     fontSize: 14, // 1:100, 14:800, 15:900
     cols: 100, // cols * 8
     rows: 50, // height = fontSize * rows
