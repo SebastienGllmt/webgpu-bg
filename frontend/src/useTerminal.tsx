@@ -10,5 +10,5 @@ export default function TerminalComponent() {
   }
 
   // Always render the div so the ref gets attached, even if terminal isn't ready yet
-  return <div className="terminal-content" ref={terminalRef} />;
+  return <div className="terminal-content" ref={terminalRef} tabIndex={0} />;
 }

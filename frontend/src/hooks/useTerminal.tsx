@@ -1,4 +1,4 @@
-import { init, Terminal } from 'ghostty-web';
+import { init, Terminal, FitAddon } from 'ghostty-web';
 import { useAsyncResource } from './useAsyncResource';
 import type { RefObject } from 'react';
 import { useCallback, useLayoutEffect, useState } from 'react';
@@ -38,6 +38,16 @@ export function useTerminal<T extends HTMLElement>(ref: RefObject<T | null>) {
 
     const term = initTerminal();
     term.open(currentElement);
+
+    // Use FitAddon to automatically resize terminal to fit container
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    
+    // Fit the terminal to the container dimensions
+    fitAddon.fit();
+    
+    // Auto-fit on container resize
+    fitAddon.observeResize();
 
     // Write initial message
     term.write('Component Terminal - Type "help" for available commands\r\n');
