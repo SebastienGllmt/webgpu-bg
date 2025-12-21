@@ -4,4 +4,6 @@ world example {
     import wasi:webgpu/webgpu@0.0.1;
     import wasi:graphics-context/graphics-context@0.0.1;
     import wasi:surface/surface@0.0.1;
+    
+    export run: func(input: string);
 }

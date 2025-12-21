@@ -46,10 +46,10 @@ function App() {
       try {
         // Dynamic import only happens after browser support is verified
         const wasmModule = await import('@wasm/triangle.js')
-        const wasiCliRun = wasmModule.run
         
         // The run function is async (marked with --async-exports 'run')
-        await wasiCliRun.run()
+        // Pass a string argument to the run function
+        await wasmModule.run("Hello from frontend!")
         console.log('WASM component loaded and running!')
         setWasmLoaded(true)
       } catch (error) {

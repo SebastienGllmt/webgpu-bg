@@ -14,20 +14,20 @@ mod bindings {
             "wasi:webgpu/webgpu@0.0.1": generate,
         },
     });
+    use super::ExampleTriangle;
+    export!(ExampleTriangle);
 }
 
 use bindings::wasi::{graphics_context::graphics_context, surface::surface, webgpu::webgpu};
 
 struct ExampleTriangle;
 
-impl ::wasi::exports::cli::run::Guest for ExampleTriangle {
-    fn run() -> Result<(), ()>{
-        draw_triangle();
-        Ok(())
+impl bindings::Guest for ExampleTriangle {
+    fn run(input: String) {
+        draw_triangle(&input);
     }
 }
 
-::wasi::cli::command::export!(ExampleTriangle);
 
 const SHADER_CODE: &str = r#"
 @vertex
@@ -43,7 +43,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 }
 "#;
 
-fn draw_triangle() {
+fn draw_triangle(input: &str) {
     let gpu = webgpu::get_gpu();
     let adapter = gpu.request_adapter(None).unwrap();
     let device = adapter.request_device(None).unwrap();
