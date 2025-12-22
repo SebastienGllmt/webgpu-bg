@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import TerminalComponent from './useTerminal.js'
 import MonacoEditor from './components/MonacoEditor'
@@ -28,8 +28,7 @@ function BrowserCompatibilityError() {
   )
 }
 
-const DEFAULT_SHADER = `
-@vertex
+const DEFAULT_SHADER = `@vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
     let x = f32(i32(in_vertex_index) - 1);
     let y = f32(i32(in_vertex_index & 1u) * 2 - 1);
@@ -41,18 +40,15 @@ fn fs_main() -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }
 `;
-// const DEFAULT_SHADER = `{
-//   "foo": "a"
-// }
-// `
 
 function App() {
-  const [text] = useState(DEFAULT_SHADER)
+  const [text, setText] = useState(DEFAULT_SHADER)
+  const wasmModuleRef = useRef<{ run: (shader: string) => Promise<void> } | null>(null)
 
   // Check for WebAssembly.Suspending support
   const isWebAssemblySupported = typeof WebAssembly !== 'undefined' && 
     'Suspending' in WebAssembly && typeof (WebAssembly as { Suspending?: unknown }).Suspending !== 'undefined'
-
+ 
   useEffect(() => {
     // Only load WASM if browser supports it
     if (!isWebAssemblySupported) {
@@ -66,6 +62,9 @@ function App() {
         // Dynamic import only happens after browser support is verified
         const wasmModule = await import('@wasm/triangle.js')
         
+        // Store the module in a ref so we can use it later
+        wasmModuleRef.current = wasmModule
+        
         // The run function is async (marked with --async-exports 'run')
         // Pass a string argument to the run function
         await wasmModule.run(DEFAULT_SHADER)
@@ -77,6 +76,15 @@ function App() {
 
     initWasm()
   }, [isWebAssemblySupported])
+
+  // Run WASM whenever text changes, but only after wasmModule is loaded
+  useEffect(() => {
+    if (wasmModuleRef.current) {
+      wasmModuleRef.current.run(text).catch((error) => {
+        console.error('Failed to run WASM with updated shader:', error)
+      })
+    }
+  }, [text])
 
   // Show error if WebAssembly.Suspending is not supported
   if (!isWebAssemblySupported) {
@@ -106,9 +114,10 @@ function App() {
         <div style={{ flex: '0 0 auto', width: '100%', display: 'flex', justifyContent: 'center' }}>
           <TerminalComponent />
         </div>
-        <div style={{ flex: '1', minHeight: 0, position: 'relative', width: '100%' }}>
+        <div style={{ flex: '1', minHeight: 0, position: 'relative', width: '100%', opacity: 0.8 }}>
           <MonacoEditor
             value={text}
+            onCodeChange={setText}
           />
         </div>
       </div>

@@ -1,5 +1,4 @@
 import getKeybindingsServiceOverride from "@codingame/monaco-vscode-keybindings-service-override";
-// import getLifecycleServiceOverride from "@codingame/monaco-vscode-lifecycle-service-override";
 import getLocalizationServiceOverride from "@codingame/monaco-vscode-localization-service-override";
 import { LogLevel } from "@codingame/monaco-vscode-api";
 import { createDefaultLocaleConfiguration } from "monaco-languageclient/vscodeApiLocales";
@@ -26,7 +25,6 @@ export const createWgslConfigSimple = (params: {
         logLevel: LogLevel.Info,
         serviceOverrides: {
             ...getKeybindingsServiceOverride(),
-            // ...getLifecycleServiceOverride(),
             ...getLocalizationServiceOverride(
                 createDefaultLocaleConfiguration(),
             ),
