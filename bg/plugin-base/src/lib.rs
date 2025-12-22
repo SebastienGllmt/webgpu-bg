@@ -2,7 +2,7 @@ mod bindings {
     // putting in separate module to avoid clash with other wasi crate
     wit_bindgen::generate!({
         path: "wit",
-        world: "example:example/example",
+        world: "starstream:bg-plugin-base/sandbox",
         // generate_all,
         with: {
             "wasi:io/poll@0.2.0": ::wasi::io::poll,

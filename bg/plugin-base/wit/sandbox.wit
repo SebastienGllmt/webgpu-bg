@@ -1,6 +1,6 @@
-package example:example;
+package starstream:bg-plugin-base;
 
-world example {
+world sandbox {
     import wasi:webgpu/webgpu@0.0.1;
     import wasi:graphics-context/graphics-context@0.0.1;
     import wasi:surface/surface@0.0.1;

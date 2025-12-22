@@ -17,7 +17,7 @@ function BrowserCompatibilityError() {
       <h2>Browser Compatibility Error</h2>
       <p><strong>WebAssembly.Suspending is not supported in your browser.</strong></p>
       <div style={{ textAlign: 'left' }}>
-        <p>This example requires JavaScript Promise Integration (JSPI) support, which is available in:</p>
+        <p>This project requires JavaScript Promise Integration (JSPI) support, which is available in:</p>
         <ul>
           <li>Chrome 126+ (or Chromium-based browsers)</li>
         </ul>
