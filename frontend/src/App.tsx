@@ -53,7 +53,7 @@ function App() {
     const initWasm = async () => {
       try {
         // Dynamic import only happens after browser support is verified
-        const wasmModule = await import('@wasm/triangle.js')
+        const wasmModule = await import('@wasm/plugin-bg.js')
         
         // Store the module in a ref so we can use it later
         wasmModuleRef.current = wasmModule

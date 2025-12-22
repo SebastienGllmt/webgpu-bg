@@ -14,19 +14,19 @@ mod bindings {
             "wasi:webgpu/webgpu@0.0.1": generate,
         },
     });
-    use super::ExampleTriangle;
-    export!(ExampleTriangle);
+    use super::PluginBase;
+    export!(PluginBase);
 }
 
 use bindings::wasi::{graphics_context::graphics_context, surface::surface, webgpu::webgpu};
 use std::sync::Mutex;
 
-struct ExampleTriangle;
+struct PluginBase;
 
 // Shared state for shader code that can be updated from multiple functions
 static SHADER_STATE: Mutex<Option<String>> = Mutex::new(None);
 
-impl bindings::Guest for ExampleTriangle {
+impl bindings::Guest for PluginBase {
     fn run(input: String) {
         print("=== WASM run() called ===");
         print(&format!("Input shader length: {}", input.len()));
