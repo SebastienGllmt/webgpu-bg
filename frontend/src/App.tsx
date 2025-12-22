@@ -41,6 +41,10 @@ fn fs_main() -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }
 `;
+// const DEFAULT_SHADER = `{
+//   "foo": "a"
+// }
+// `
 
 function App() {
   const [text] = useState(DEFAULT_SHADER)
@@ -104,8 +108,6 @@ function App() {
         </div>
         <div style={{ flex: '1', minHeight: 0, position: 'relative', width: '100%' }}>
           <MonacoEditor
-            language="wgsl"
-            theme="vs-dark"
             value={text}
           />
         </div>
