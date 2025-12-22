@@ -100,6 +100,7 @@ fn draw_triangle() {
     let mut cached_vertex_module: Option<webgpu::GpuShaderModule> = None;
     let mut cached_fragment_module: Option<webgpu::GpuShaderModule> = None;
     let mut cached_pipeline: Option<webgpu::GpuRenderPipeline> = None;
+    let mut last_failed_shader: Option<String> = None;
     let pipeline_layout = device.create_pipeline_layout(&webgpu::GpuPipelineLayoutDescriptor {
         label: None,
         bind_group_layouts: vec![],
@@ -116,52 +117,74 @@ fn draw_triangle() {
         let shader_changed = cached_shader_code.as_ref().map(|s| s != &current_shader_code).unwrap_or(true);
         
         if shader_changed {
-            // Create new shader modules
-            cached_vertex_module = Some(device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
-                code: current_shader_code.clone(),
-                label: None,
-                compilation_hints: None,
-            }));
-            cached_fragment_module = Some(device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
-                code: current_shader_code.clone(),
-                label: None,
-                compilation_hints: None,
+            // Try to validate and compile the new shader
+            let validation_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                // Create new shader modules
+                let vertex_module = device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
+                    code: current_shader_code.clone(),
+                    label: None,
+                    compilation_hints: None,
+                });
+                let fragment_module = device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
+                    code: current_shader_code.clone(),
+                    label: None,
+                    compilation_hints: None,
+                });
+                
+                // Create new render pipeline
+                let vertex = webgpu::GpuVertexState {
+                    module: &vertex_module,
+                    entry_point: Some("vs_main".to_string()),
+                    buffers: None,
+                    constants: None,
+                };
+                let fragment = webgpu::GpuFragmentState {
+                    module: &fragment_module,
+                    entry_point: Some("fs_main".to_string()),
+                    targets: vec![Some(webgpu::GpuColorTargetState {
+                        format: webgpu::GpuTextureFormat::Bgra8unorm,
+                        blend: None,
+                        write_mask: None,
+                    })],
+                    constants: None,
+                };
+                let pipeline_description = webgpu::GpuRenderPipelineDescriptor {
+                    label: None,
+                    vertex,
+                    fragment: Some(fragment),
+                    primitive: Some(webgpu::GpuPrimitiveState {
+                        topology: Some(webgpu::GpuPrimitiveTopology::TriangleList),
+                        strip_index_format: None,
+                        front_face: None,
+                        cull_mode: None,
+                        unclipped_depth: None,
+                    }),
+                    depth_stencil: None,
+                    multisample: None,
+                    layout: webgpu::GpuLayoutMode::Specific(&pipeline_layout),
+                };
+                let pipeline = device.create_render_pipeline(pipeline_description);
+                (vertex_module, fragment_module, pipeline)
             }));
             
-            // Create new render pipeline
-            let vertex = webgpu::GpuVertexState {
-                module: cached_vertex_module.as_ref().unwrap(),
-                entry_point: Some("vs_main".to_string()),
-                buffers: None,
-                constants: None,
-            };
-            let fragment = webgpu::GpuFragmentState {
-                module: cached_fragment_module.as_ref().unwrap(),
-                entry_point: Some("fs_main".to_string()),
-                targets: vec![Some(webgpu::GpuColorTargetState {
-                    format: webgpu::GpuTextureFormat::Bgra8unorm,
-                    blend: None,
-                    write_mask: None,
-                })],
-                constants: None,
-            };
-            let pipeline_description = webgpu::GpuRenderPipelineDescriptor {
-                label: None,
-                vertex,
-                fragment: Some(fragment),
-                primitive: Some(webgpu::GpuPrimitiveState {
-                    topology: Some(webgpu::GpuPrimitiveTopology::TriangleList),
-                    strip_index_format: None,
-                    front_face: None,
-                    cull_mode: None,
-                    unclipped_depth: None,
-                }),
-                depth_stencil: None,
-                multisample: None,
-                layout: webgpu::GpuLayoutMode::Specific(&pipeline_layout),
-            };
-            cached_pipeline = Some(device.create_render_pipeline(pipeline_description));
-            cached_shader_code = Some(current_shader_code);
+            match validation_result {
+                Ok((vertex_module, fragment_module, pipeline)) => {
+                    // Shader compiled successfully, update cached resources
+                    cached_vertex_module = Some(vertex_module);
+                    cached_fragment_module = Some(fragment_module);
+                    cached_pipeline = Some(pipeline);
+                    cached_shader_code = Some(current_shader_code.clone());
+                    last_failed_shader = None; // Clear failed shader tracking on success
+                }
+                Err(_) => {
+                    // Shader compilation panicked (likely invalid shader code)
+                    // Only warn if this is a different invalid shader than last time
+                    if last_failed_shader.as_ref() != Some(&current_shader_code) {
+                        print(&format!("Warning: Shader compilation failed due to invalid shader code. Keeping previous shader."));
+                        last_failed_shader = Some(current_shader_code);
+                    }
+                }
+            }
         }
         
         let render_pipeline = cached_pipeline.as_ref().unwrap();
