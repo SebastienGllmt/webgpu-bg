@@ -36,7 +36,7 @@ fn fragmentMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
 
 function App() {
   const [text, setText] = useState(DEFAULT_SHADER)
-  const wasmModuleRef = useRef<{ run: (shader: string) => Promise<void> } | null>(null)
+  const wasmModuleRef = useRef<typeof import('@wasm/plugin-bg.js') | null>(null)
 
   // Check for WebAssembly.Suspending support
   const isWebAssemblySupported = typeof WebAssembly !== 'undefined' && 
@@ -55,13 +55,13 @@ function App() {
         // Dynamic import only happens after browser support is verified
         const wasmModule = await import('@wasm/plugin-bg.js')
         
+        if (wasmModuleRef.current != null) return;
         // Store the module in a ref so we can use it later
         wasmModuleRef.current = wasmModule
         
         // The run function is async (marked with --async-exports 'run')
-        // Pass a string argument to the run function
-        await wasmModule.run(DEFAULT_SHADER)
-        console.log('WASM component loaded and running!')
+        // note: this will never terminate
+        await wasmModule.run.run() 
       } catch (error) {
         console.error('Failed to run WASM component:', error)
       }
@@ -73,9 +73,11 @@ function App() {
   // Run WASM whenever text changes, but only after wasmModule is loaded
   useEffect(() => {
     if (wasmModuleRef.current) {
-      wasmModuleRef.current.run(text).catch((error) => {
+      try {
+        wasmModuleRef.current.updateShader(text);
+      } catch(error) {
         console.error('Failed to run WASM with updated shader:', error)
-      })
+      }
     }
   }, [text])
 

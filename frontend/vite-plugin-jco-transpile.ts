@@ -75,9 +75,10 @@ export function jcoTranspilePlugin(): Plugin {
         // From src/wasm/generated/ to src/lib/ requires going up two levels
         '--map', 'wasi:io/poll=../../lib/gfx.js#poll',
         '--map', 'wasi:webgpu/webgpu=../../lib/gfx.js',
-        '--map', 'wasi:surface/surface=../../lib/gfx.js',
+        '--map', 'wasi:surface/surface=../../lib/gfx-surface-wrapper.js',
         '--map', 'wasi:graphics-context/graphics-context=../../lib/gfx.js',
         '--map', 'wasi:frame-buffer/frame-buffer=../../lib/gfx.js',
+        '--map', 'wasi:clocks/monotonic-clock=../../lib/clock.js#monotonicClock',
       ].join(' ')
 
       // Verify gfx.js exists before transpiling

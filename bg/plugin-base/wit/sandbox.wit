@@ -4,7 +4,7 @@ world sandbox {
     import wasi:webgpu/webgpu@0.0.1;
     import wasi:graphics-context/graphics-context@0.0.1;
     import wasi:surface/surface@0.0.1;
-    
-    export run: func(input: string);
+    import wasi:clocks/monotonic-clock@0.2.0;
+
     export update-shader: func(shader-code: string);
 }

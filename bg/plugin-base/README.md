@@ -26,7 +26,7 @@ The user-provided shader has access to the following uniform
 struct Uniforms {
     size:  vec4<f32>,
     mouse: vec4<f32>,
-    time:  f32,
+    time:  f32, // in fractional seconds
     frame: i32,
 }
 ```
@@ -53,7 +53,7 @@ We currently have the following limitations:
 ## Interacting with the plugin
 
 Once compilers, the Wasm Component exposes two functions:
-- `run` to start the program (following [wasi-cli](https://github.com/WebAssembly/wasi-cli)). This does not render anything, but sets up the project
+- `run` to start the program (following [wasi-cli](https://github.com/WebAssembly/wasi-cli)). This starts the render loop, and the function never terminates. The initial shader is just a solid black color.
 - `update-shader` to either set the initial shader to use, or update it to a new shader. It accepts wgsl code directly for your fragment shader. It can be called at any time. This function will return right away after setting the new shader and will not block waiting for it to be rendered on the screen. If an invalid shader is submitted, a black screen will be rendered.
 
 
@@ -77,11 +77,13 @@ Currently there is no debugging support. Instead of using this tool for prototyp
 ```shell
 cargo install wasm-tools
 rustup target add wasm32-unknown-unknown
+cargo install wit-deps-cli
 ```
 
 ### Compile
 
 ```shell
+wit-deps
 cargo build --target wasm32-unknown-unknown --release
 wasm-tools component new ./target/wasm32-unknown-unknown/release/plugin_base.wasm -o ./bin/plugin-bg.wasm
 ```
