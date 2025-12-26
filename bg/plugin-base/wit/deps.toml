@@ -14,3 +14,6 @@ prefix = "wasi-gfx-0.0.1/graphics-context"
 [clocks]
 url = "https://github.com/WebAssembly/wasi-clocks/archive/refs/tags/v0.2.0.tar.gz"
 prefix = "wasi-clocks-0.2.0/wit"
+
+[startstream-utils]
+path = "../../../shared/wit/loopback"

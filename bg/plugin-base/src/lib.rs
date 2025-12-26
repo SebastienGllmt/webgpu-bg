@@ -8,6 +8,7 @@ mod bindings {
             "wasi:surface/surface@0.0.1": generate,
             "wasi:webgpu/webgpu@0.0.1": generate,
             "wasi:clocks/monotonic-clock@0.2.0": ::wasi::clocks::monotonic_clock,
+            "starstream:utils/loopback@0.2.0": generate,
         },
     });
     use super::PluginBase;
@@ -15,15 +16,14 @@ mod bindings {
 }
 
 use bindings::wasi::{graphics_context::graphics_context, surface::surface, webgpu::webgpu};
+use bindings::starstream::utils::loopback;
 use std::sync::Mutex;
 
 struct PluginBase;
 
-// Shared state for shader code that can be updated from multiple functions
-static SHADER_STATE: Mutex<Option<String>> = Mutex::new(None);
-
 impl ::wasi::exports::cli::run::Guest for PluginBase {
     fn run() -> Result<(), ()>{
+        *FORCE_RENDER_COND_VAR.lock().unwrap() = Some(loopback::register_loopback());
         // Wrap render loop in panic handler to prevent WASM crashes
         // Careful: this won't catch all GPU issues
         //          ex: https://developer.mozilla.org/en-US/docs/Web/API/GPUDevice/uncapturederror_event
@@ -39,10 +39,19 @@ impl ::wasi::exports::cli::run::Guest for PluginBase {
 }
 ::wasi::cli::command::export!(PluginBase);
 
+// Queued shader code to render on next force re-render
+static SHADER_STATE: Mutex<Option<String>> = Mutex::new(None);
+// Force a re-render once some setting changes have been queued
+static FORCE_RENDER_COND_VAR: Mutex<Option<loopback::ConditionVariable>> = Mutex::new(None);
+
 impl bindings::Guest for PluginBase {
-    fn update_shader(shader_code: String) {
-        // Update the shader code in shared state
+    fn queue_shader(shader_code: String) {
         *SHADER_STATE.lock().unwrap() = Some(shader_code);
+        // (should always be the case) only notify if the cond var has been initialized by run()
+        let guard = FORCE_RENDER_COND_VAR.lock().unwrap();
+        if let Some(ref cond_var) = guard.as_ref() {
+            cond_var.notify();
+        }
     }
 }
 
@@ -72,7 +81,6 @@ const UNIFORM_BUFFER_SIZE: usize = 48;
 // Full-screen quad vertex shader
 // Creates a quad covering the entire screen using vertex_index
 // Uses 6 vertices (2 triangles) to form a full-screen quad
-// TODO: rendering a triangle to test
 const FULL_SCREEN_VERTEX_SHADER: &str = r#"
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
@@ -101,6 +109,166 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 fn preprocess_shader(user_code: &str) -> String {
     let processed_code = user_code.trim();
     return format!("{}\n{}\n{}", STANDARD_UNIFORMS, FULL_SCREEN_VERTEX_SHADER, processed_code);
+}
+
+/// Checks if the shader code uses the mouse uniform.
+fn shader_uses_mouse(shader_code: &str) -> bool {
+    shader_code.contains("inputs.mouse")
+}
+
+/// Checks if the shader code uses time or frame uniforms.
+fn shader_uses_time_or_frame(shader_code: &str) -> bool {
+    shader_code.contains("inputs.time") || shader_code.contains("inputs.frame")
+}
+
+/// Event types that can be polled
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EventType {
+    PointerMove,
+    Resize,
+    Frame,
+    ForceRender,
+}
+
+/// Renders a frame with the given uniforms
+fn render_frame(
+    device: &webgpu::GpuDevice,
+    graphics_context: &graphics_context::Context,
+    uniform_buffer: &webgpu::GpuBuffer,
+    bind_group: &webgpu::GpuBindGroup,
+    pipeline: &webgpu::GpuRenderPipeline,
+    size: (f32, f32, f32, f32),
+    mouse_pos: (f32, f32, f32, f32),
+    initial_time: u64,
+    frame_count: &i32,
+) {
+    let time_delta = ::wasi::clocks::monotonic_clock::now() - initial_time;
+    // uniform expects time as a fractional "second" resolution
+    let time = time_delta as f32 / 1_000_000_000.0;
+
+    let mut uniform_data = vec![0u8; UNIFORM_BUFFER_SIZE];
+    
+    // size: vec4<f32> at offset 0
+    uniform_data[0..4].copy_from_slice(&size.0.to_le_bytes());
+    uniform_data[4..8].copy_from_slice(&size.1.to_le_bytes());
+    uniform_data[8..12].copy_from_slice(&size.2.to_le_bytes());
+    uniform_data[12..16].copy_from_slice(&size.3.to_le_bytes());
+    
+    // mouse: vec4<f32> at offset 16
+    uniform_data[16..20].copy_from_slice(&mouse_pos.0.to_le_bytes());
+    uniform_data[20..24].copy_from_slice(&mouse_pos.1.to_le_bytes());
+    uniform_data[24..28].copy_from_slice(&mouse_pos.2.to_le_bytes());
+    uniform_data[28..32].copy_from_slice(&mouse_pos.3.to_le_bytes());
+    
+    // time: f32 at offset 32
+    uniform_data[32..36].copy_from_slice(&time.to_le_bytes());
+    
+    // frame: i32 at offset 36
+    uniform_data[36..40].copy_from_slice(&frame_count.to_le_bytes());
+
+    let graphics_buffer = graphics_context.get_current_buffer();
+    let texture = webgpu::GpuTexture::from_graphics_buffer(graphics_buffer);
+    let view = texture.create_view(None);
+    let encoder = device.create_command_encoder(None);
+
+    // Write uniform data to buffer
+    let _ = device.queue().write_buffer_with_copy(&uniform_buffer, 0, &uniform_data, None, None);
+
+    // Render - wrap in block for proper lifetime management
+    {
+        let render_pass_description = webgpu::GpuRenderPassDescriptor {
+            label: None,
+            color_attachments: vec![Some(webgpu::GpuRenderPassColorAttachment {
+                view: &view,
+                depth_slice: None,
+                resolve_target: None,
+                clear_value: Some(webgpu::GpuColor {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 1.0,
+                }),
+                load_op: webgpu::GpuLoadOp::Clear,
+                store_op: webgpu::GpuStoreOp::Store,
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+            max_draw_count: None,
+        };
+        let render_pass = encoder.begin_render_pass(&render_pass_description);
+
+        render_pass.set_pipeline(&pipeline);
+        let _ = render_pass.set_bind_group(0, Some(&bind_group), None, None, None);
+        render_pass.draw(6, None, None, None); // 6 vertices for full-screen quad
+        render_pass.end();
+    }
+
+    device.queue().submit(&[&encoder.finish(None)]);
+    graphics_context.present();
+}
+
+fn get_shader_code() -> String {
+    let shader_state = SHADER_STATE.lock().unwrap();
+    let shader_to_use = match shader_state.as_ref() {
+        Some(s) => s.clone(),
+        None => DEFAULT_FRAGMENT_SHADER.to_string(),
+    };
+
+    let shader_code = preprocess_shader(&shader_to_use);
+    shader_code
+}
+fn create_pipeline(device: &webgpu::GpuDevice, bind_group_layout: &webgpu::GpuBindGroupLayout, shader_code: String) -> webgpu::GpuRenderPipeline {
+    // Create pipeline layout
+    let pipeline_layout = device.create_pipeline_layout(&webgpu::GpuPipelineLayoutDescriptor {
+        label: None,
+        bind_group_layouts: vec![Some(&bind_group_layout)],
+    });
+
+    let vertex_module = device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
+        code: shader_code.clone(),
+        label: None,
+        compilation_hints: None,
+    });
+    let fragment_module = device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
+        code: shader_code.clone(),
+        label: None,
+        compilation_hints: None,
+    });
+
+    // Create render pipeline
+    let vertex = webgpu::GpuVertexState {
+        module: &vertex_module,
+        entry_point: Some("vs_main".to_string()),
+        buffers: None,
+        constants: None,
+    };
+    let fragment = webgpu::GpuFragmentState {
+        module: &fragment_module,
+        entry_point: Some("fragmentMain".to_string()),
+        targets: vec![Some(webgpu::GpuColorTargetState {
+            format: webgpu::GpuTextureFormat::Bgra8unorm,
+            blend: None,
+            write_mask: None,
+        })],
+        constants: None,
+    };
+    let pipeline = device.create_render_pipeline(webgpu::GpuRenderPipelineDescriptor {
+        label: None,
+        vertex,
+        fragment: Some(fragment),
+        primitive: Some(webgpu::GpuPrimitiveState {
+            topology: Some(webgpu::GpuPrimitiveTopology::TriangleList),
+            strip_index_format: None,
+            front_face: None,
+            cull_mode: None,
+            unclipped_depth: None,
+        }),
+        depth_stencil: None,
+        multisample: None,
+        layout: webgpu::GpuLayoutMode::Specific(&pipeline_layout),
+    });
+    pipeline
 }
 
 fn start_render_loop() {
@@ -179,168 +347,92 @@ fn start_render_loop() {
         }],
     });
 
+    let mut shader_code = get_shader_code();
+    let mut pipeline = create_pipeline(&device, &bind_group_layout, shader_code.clone());
     // Main render loop
     loop {
-        // Create pipeline layout
-        let pipeline_layout = device.create_pipeline_layout(&webgpu::GpuPipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: vec![Some(&bind_group_layout)],
-        });
-
-        // Create shader module - use shader from SHADER_STATE if available, otherwise use default
-        let shader_to_use = {
-            let shader_state = SHADER_STATE.lock().unwrap();
-            match shader_state.as_ref() {
-                Some(s) => s.clone(),
-                None => DEFAULT_FRAGMENT_SHADER.to_string(),
+        // Build pollables vector conditionally based on what the shader actually needs
+        // this avoids needless computational overhead
+        // ex: updating mouse position for shaders that don't use the mouse
+        let (poll_result, index_to_event) = {
+            let mut pollables = Vec::new();
+            let mut index_to_event: Vec<EventType> = Vec::new();
+            
+            // Check which uniforms the shader uses to conditionally include polling
+            let uses_mouse = shader_uses_mouse(&shader_code);
+            if uses_mouse {
+                pollables.push(&pointer_move_pollable);
+                index_to_event.push(EventType::PointerMove);
             }
-        };
-        let shader_code = preprocess_shader(&shader_to_use);
-
-        let vertex_module = device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
-            code: shader_code.clone(),
-            label: None,
-            compilation_hints: None,
-        });
-        let fragment_module = device.create_shader_module(&webgpu::GpuShaderModuleDescriptor {
-            code: shader_code.clone(),
-            label: None,
-            compilation_hints: None,
-        });
-
-        // Create render pipeline
-        let vertex = webgpu::GpuVertexState {
-            module: &vertex_module,
-            entry_point: Some("vs_main".to_string()),
-            buffers: None,
-            constants: None,
-        };
-        let fragment = webgpu::GpuFragmentState {
-            module: &fragment_module,
-            entry_point: Some("fragmentMain".to_string()),
-            targets: vec![Some(webgpu::GpuColorTargetState {
-                format: webgpu::GpuTextureFormat::Bgra8unorm,
-                blend: None,
-                write_mask: None,
-            })],
-            constants: None,
-        };
-        let pipeline = device.create_render_pipeline(webgpu::GpuRenderPipelineDescriptor {
-            label: None,
-            vertex,
-            fragment: Some(fragment),
-            primitive: Some(webgpu::GpuPrimitiveState {
-                topology: Some(webgpu::GpuPrimitiveTopology::TriangleList),
-                strip_index_format: None,
-                front_face: None,
-                cull_mode: None,
-                unclipped_depth: None,
-            }),
-            depth_stencil: None,
-            multisample: None,
-            layout: webgpu::GpuLayoutMode::Specific(&pipeline_layout),
-        });
-        
-        // Rebuild pollables vector each iteration to update frame_pollable
-        let pollables = vec![
-            &pointer_move_pollable,
-            &resize_pollable,
-            &frame_pollable,
-        ];
-        
-        // Check for events in a blocking way
-        let poll_result = ::wasi::io::poll::poll(&pollables);
-        
-        if poll_result.contains(&0) {
-            print("pointer_move");
-            let event = canvas.get_pointer_move();
-            if let Some(e) = event {
-                print(&format!("mouse_pos: {:?}", e));
-                mouse_pos = (e.x as f32, e.y as f32, 0.0, 0.0);
+            
+            // Resize is always needed
+            pollables.push(&resize_pollable);
+            index_to_event.push(EventType::Resize);
+            
+            let uses_time_or_frame = shader_uses_time_or_frame(&shader_code);
+            if uses_time_or_frame {
+                pollables.push(&frame_pollable);
+                index_to_event.push(EventType::Frame);
             }
-        }
 
-        if poll_result.contains(&1) {
-            if let Some(event) = canvas.get_resize() {
-                let width = event.width as f32;
-                let height = event.height as f32;
-                // Calculate aspect ratio (width/height), avoiding division by zero
-                let aspect = if height > 0.0 { width / height } else { 1.0 };
-                size = (width, height, aspect, 0.0);
+            // If the host queued some setting updates for us to process
+            let force_render_pollable = {
+                // note: explicitly scope acquiring lock to this block
+                // so that it's released before we enter `poll::poll`
+                let guard = FORCE_RENDER_COND_VAR.lock().unwrap();
+                guard.as_ref().map(|cond_var| cond_var.as_pollable())
+            };
+            if let Some(ref pollable) = force_render_pollable {
+                pollables.push(pollable);
+                index_to_event.push(EventType::ForceRender);
+            }
+            
+            // Check for events in a blocking way
+            let result = ::wasi::io::poll::poll(&pollables);
+            
+            (result, index_to_event)
+        };
+        
+        let mut need_render = false;
+
+        // Process events based on the mapping
+        for (index, event_type) in index_to_event.iter().enumerate() {
+            if poll_result.contains(&(index as u32)) {
+                match event_type {
+                    EventType::PointerMove => {
+                        let event = canvas.get_pointer_move();
+                        if let Some(e) = event {
+                            mouse_pos = (e.x as f32, e.y as f32, 0.0, 0.0);
+                            need_render = true;
+                        }
+                    }
+                    EventType::Resize => {
+                        if let Some(event) = canvas.get_resize() {
+                            let width = event.width as f32;
+                            let height = event.height as f32;
+                            // Calculate aspect ratio (width/height), avoiding division by zero
+                            let aspect = if height > 0.0 { width / height } else { 1.0 };
+                            size = (width, height, aspect, 0.0);
+                            need_render = true;
+                        }
+                    }
+                    EventType::Frame => {
+                        frame_count += 1;
+                        need_render = true;
+                    }
+                    EventType::ForceRender => {
+                        need_render = true;
+                        shader_code = get_shader_code();
+                        pipeline = create_pipeline(&device, &bind_group_layout, shader_code.clone());
+                    }
+                }
             }
         }
 
-        // Render frame
-        if poll_result.contains(&2) {
+        if need_render {
             // start a timer for the next frame
             frame_pollable = ::wasi::clocks::monotonic_clock::subscribe_duration(DURATION_PER_FRAME);
-
-            let time_delta = ::wasi::clocks::monotonic_clock::now() - initial_time;
-            // uniform expects time as a fractional "second" resolution
-            let time = time_delta as f32 / 1_000_000_000.0;
-
-            frame_count += 1;
-
-            let mut uniform_data = vec![0u8; UNIFORM_BUFFER_SIZE];
-            
-            // size: vec4<f32> at offset 0
-            uniform_data[0..4].copy_from_slice(&size.0.to_le_bytes());
-            uniform_data[4..8].copy_from_slice(&size.1.to_le_bytes());
-            uniform_data[8..12].copy_from_slice(&size.2.to_le_bytes());
-            uniform_data[12..16].copy_from_slice(&size.3.to_le_bytes());
-            
-            // mouse: vec4<f32> at offset 16
-            uniform_data[16..20].copy_from_slice(&mouse_pos.0.to_le_bytes());
-            uniform_data[20..24].copy_from_slice(&mouse_pos.1.to_le_bytes());
-            uniform_data[24..28].copy_from_slice(&mouse_pos.2.to_le_bytes());
-            uniform_data[28..32].copy_from_slice(&mouse_pos.3.to_le_bytes());
-            
-            // time: f32 at offset 32
-            uniform_data[32..36].copy_from_slice(&time.to_le_bytes());
-            
-            // frame: i32 at offset 36
-            uniform_data[36..40].copy_from_slice(&frame_count.to_le_bytes());
-
-            let graphics_buffer = graphics_context.get_current_buffer();
-            let texture = webgpu::GpuTexture::from_graphics_buffer(graphics_buffer);
-            let view = texture.create_view(None);
-            let encoder = device.create_command_encoder(None);
-
-            // Write uniform data to buffer
-            let _ = device.queue().write_buffer_with_copy(&uniform_buffer, 0, &uniform_data, None, None);
-
-            // Render - wrap in block for proper lifetime management
-            {
-                let render_pass_description = webgpu::GpuRenderPassDescriptor {
-                    label: None,
-                    color_attachments: vec![Some(webgpu::GpuRenderPassColorAttachment {
-                        view: &view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        clear_value: Some(webgpu::GpuColor {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        }),
-                        load_op: webgpu::GpuLoadOp::Clear,
-                        store_op: webgpu::GpuStoreOp::Store,
-                    })],
-                    depth_stencil_attachment: None,
-                    occlusion_query_set: None,
-                    timestamp_writes: None,
-                    max_draw_count: None,
-                };
-                let render_pass = encoder.begin_render_pass(&render_pass_description);
-
-                render_pass.set_pipeline(&pipeline);
-                let _ = render_pass.set_bind_group(0, Some(&bind_group), None, None, None);
-                render_pass.draw(6, None, None, None); // 6 vertices for full-screen quad
-                render_pass.end();
-            }
-
-            device.queue().submit(&[&encoder.finish(None)]);
-            graphics_context.present();
+            render_frame(&device, &graphics_context, &uniform_buffer, &bind_group, &pipeline, size, mouse_pos, initial_time, &frame_count);
         }
     }
 }

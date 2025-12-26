@@ -3,7 +3,6 @@ import './App.css'
 import TerminalComponent from './useTerminal.js'
 import MonacoEditor from './components/MonacoEditor'
 
-
 function BrowserCompatibilityError() {
   return (
     <div style={{
@@ -29,8 +28,8 @@ function BrowserCompatibilityError() {
 }
 
 const DEFAULT_SHADER = `@fragment
-fn fragmentMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-    return vec4f(pos.xy / inputs.size.xy, 0.5, 1);
+fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    return vec4<f32>(pos.xy / inputs.size.xy, 0.5, 1);
 }
 `;
 
@@ -74,7 +73,7 @@ function App() {
   useEffect(() => {
     if (wasmModuleRef.current) {
       try {
-        wasmModuleRef.current.updateShader(text);
+        wasmModuleRef.current.queueShader(text);
       } catch(error) {
         console.error('Failed to run WASM with updated shader:', error)
       }

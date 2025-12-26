@@ -62,6 +62,8 @@ export run: func();
 export update-shader: func(shader-code: string);
 ```
 
+TODO: update above
+
 ## Guideline
 
 Shaders which require no animations are recommended for performance reasons. For animations, the first 5 seconds will be unthrottled (to allow for GPU-intensive wind-up animations) before being throttled to avoid taxing the user's system (to allow for more important applications to run, but also to avoid draining the user's battery on mobile devices). If you animation does not have a "wind-up" state, be careful how you design your animation to take into the fact the animation speed will be throttled after 5s to avoid a jarring change in your animation's pace.

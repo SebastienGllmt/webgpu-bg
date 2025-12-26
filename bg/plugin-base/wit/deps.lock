@@ -15,6 +15,11 @@ sha512 = "b9cef19d2cf0a0f3d0a58c94cf4483d051acfb5622e379bf0abcc6aa34c14d92210c56
 sha256 = "7210e5653539a15478f894d4da24cc69d61924cbcba21d2804d69314a88e5a4c"
 sha512 = "49184a1b0945a889abd52d25271172ed3dc2db6968fcdddb1bab7ee0081f4a3eeee0977ad2291126a37631c0d86eeea75d822fa8af224c422134500bf9f0f2bb"
 
+[startstream-utils]
+path = "../../../shared/wit/loopback"
+sha256 = "8bb5525862a578984d30bf83239c2e24a4904bfaa70b5ebda83c35230bbb8181"
+sha512 = "a7cf92096c5595b7c2005978e03bbcfc8045f3a8b41af3cddf246d5279a7fae043d0966ab298a04e38f4b11b04d3da44e424eef4f73490d00c1f72814b134756"
+
 [surface]
 url = "https://github.com/WebAssembly/wasi-gfx/archive/refs/heads/v0.0.1.tar.gz"
 prefix = "wasi-gfx-0.0.1/surface"

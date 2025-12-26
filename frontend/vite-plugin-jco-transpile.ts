@@ -58,6 +58,7 @@ export function jcoTranspilePlugin(): Plugin {
         wasmPath,
         '-o', outputDir,
         '--async-exports', 'run',
+        '--async-exports', 'queue-shader',
         '--async-imports', 'wasi:webgpu/webgpu#[method]gpu.request-adapter',
         '--async-imports', 'wasi:webgpu/webgpu#[method]gpu-adapter.request-device',
         '--async-imports', 'wasi:webgpu/webgpu#[method]gpu-buffer.map-async',
@@ -74,6 +75,7 @@ export function jcoTranspilePlugin(): Plugin {
         // Map to source gfx.js using relative path from generated directory
         // From src/wasm/generated/ to src/lib/ requires going up two levels
         '--map', 'wasi:io/poll=../../lib/gfx.js#poll',
+        '--map', 'starstream:utils/loopback=../../lib/loopback.js#loopback',
         '--map', 'wasi:webgpu/webgpu=../../lib/gfx.js',
         '--map', 'wasi:surface/surface=../../lib/gfx-surface-wrapper.js',
         '--map', 'wasi:graphics-context/graphics-context=../../lib/gfx.js',
