@@ -33,3 +33,42 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Range slider styling */
+#opacity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+#opacity-slider::-webkit-slider-track {
+  background: #ddd;
+  height: 6px;
+  border-radius: 3px;
+}
+
+#opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #4a90e2;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  margin-top: -6px;
+}
+
+#opacity-slider::-moz-range-track {
+  background: #ddd;
+  height: 6px;
+  border-radius: 3px;
+}
+
+#opacity-slider::-moz-range-thumb {
+  background: #4a90e2;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}

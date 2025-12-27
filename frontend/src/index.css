@@ -36,6 +36,13 @@ body {
   left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
+  z-index: 0 !important;
+}
+
+/* Ensure the root React app appears above the background */
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 .terminal-content {

@@ -35,6 +35,7 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 
 function App() {
   const [text, setText] = useState(DEFAULT_SHADER)
+  const [opacity, setOpacity] = useState(0.8)
   const wasmModuleRef = useRef<typeof import('@wasm/plugin-bg.js') | null>(null)
 
   // Check for WebAssembly.Suspending support
@@ -105,10 +106,61 @@ function App() {
         width: '100%',
         maxWidth: 'none'
       }}>
-        <div style={{ flex: '0 0 auto', width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <TerminalComponent />
+        <div style={{ 
+          display: 'flex', 
+          width: '100%', 
+          height: '4px'
+        }}>
+          <div style={{ 
+            width: '50%', 
+            backgroundColor: 'red',
+            height: '100%'
+          }}></div>
+          <div style={{ 
+            width: '50%', 
+            backgroundColor: 'green',
+            height: '100%'
+          }}></div>
         </div>
-        <div style={{ flex: '1', minHeight: 0, position: 'relative', width: '100%', opacity: 0.8 }}>
+        <div style={{ flex: '0 0 auto', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          {/* <TerminalComponent /> */}
+        </div>
+        <div style={{ 
+          flex: '0 0 auto', 
+          padding: '12px 16px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          backgroundColor: '#f5f5f5',
+          borderBottom: '1px solid #ddd',
+          width: 'fit-content',
+          opacity: 0.8,
+          boxSizing: 'border-box'
+        }}>
+          <label htmlFor="opacity-slider" style={{ fontSize: '14px', fontWeight: '500', color: '#333', whiteSpace: 'nowrap' }}>Opacity:</label>
+          <input
+            id="opacity-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={opacity}
+            onChange={(e) => setOpacity(parseFloat(e.target.value))}
+            style={{ 
+              flex: '1', 
+              maxWidth: '300px',
+              height: '8px',
+              cursor: 'pointer',
+              minWidth: '100px',
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              background: 'transparent',
+              outline: 'none'
+            }}
+          />
+          <span style={{ fontSize: '14px', minWidth: '45px', fontWeight: '500', color: '#333', whiteSpace: 'nowrap' }}>{(opacity * 100).toFixed(0)}%</span>
+        </div>
+        <div style={{ flex: '1', minHeight: 0, position: 'relative', width: '100%', opacity: opacity }}>
           <MonacoEditor
             value={text}
             onCodeChange={setText}

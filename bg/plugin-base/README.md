@@ -53,7 +53,7 @@ We currently have the following limitations:
 ## Interacting with the plugin
 
 Once compilers, the Wasm Component exposes two functions:
-- `run` to start the program (following [wasi-cli](https://github.com/WebAssembly/wasi-cli)). This starts the render loop, and the function never terminates. The initial shader is just a solid black color.
+- `run` to start the program (following [wasi-cli](https://github.com/WebAssembly/wasi-cli)). This starts the render loop, and the function never terminates. The initial shader is just a solid grey color.
 - `update-shader` to either set the initial shader to use, or update it to a new shader. It accepts wgsl code directly for your fragment shader. It can be called at any time. This function will return right away after setting the new shader and will not block waiting for it to be rendered on the screen. If an invalid shader is submitted, a black screen will be rendered.
 
 
@@ -61,8 +61,6 @@ Once compilers, the Wasm Component exposes two functions:
 export run: func();
 export update-shader: func(shader-code: string);
 ```
-
-TODO: update above
 
 ## Guideline
 

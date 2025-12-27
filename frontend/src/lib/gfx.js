@@ -542,13 +542,18 @@ class Surface {
         return this.canvas.getContext(contextId, options);
     }
     height() {
-        throw new Todo;
+        return this.canvas.height;
     }
     width() {
-        throw new Todo;
+        return this.canvas.width;
     }
     requestSetSize(newHeight, newWidth) {
-        throw new Todo;
+        if (newWidth != null) {
+            this.canvas.width = newWidth;
+        }
+        if (newHeight != null) {
+            this.canvas.height = newHeight;
+        }
     }
 }
 

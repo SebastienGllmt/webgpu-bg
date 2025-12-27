@@ -78,9 +78,9 @@ var<uniform> inputs: Uniforms;
 /// Aligned to 16 bytes per WebGPU spec, so we need 48 bytes total
 const UNIFORM_BUFFER_SIZE: usize = 48;
 
-// Full-screen quad vertex shader
-// Creates a quad covering the entire screen using vertex_index
-// Uses 6 vertices (2 triangles) to form a full-screen quad
+/// Full-screen quad vertex shader
+/// Creates a quad covering the entire screen using vertex_index
+/// Uses 6 vertices (2 triangles) to form a full-screen quad
 const FULL_SCREEN_VERTEX_SHADER: &str = r#"
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
@@ -97,11 +97,12 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) ve
 }
 "#;
 
-// Default fragment shader
+/// Default fragment shader
+/// Grey so that it's neither black nor white (makes it easy to tell the code ran properly both on dark mode and light mode)
 const DEFAULT_FRAGMENT_SHADER: &str = r#"
 @fragment
 fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-    return vec4<f32>(pos.xy / inputs.size.xy, 0.5, 1);
+    return vec4<f32>(0.5, 0.5, 0.5, 1.0);
 }
 "#;
 
@@ -248,8 +249,19 @@ fn create_pipeline(device: &webgpu::GpuDevice, bind_group_layout: &webgpu::GpuBi
         entry_point: Some("fragmentMain".to_string()),
         targets: vec![Some(webgpu::GpuColorTargetState {
             format: webgpu::GpuTextureFormat::Bgra8unorm,
-            blend: None,
-            write_mask: None,
+            blend: Some(webgpu::GpuBlendState {
+                color: webgpu::GpuBlendComponent {
+                    src_factor: Some(webgpu::GpuBlendFactor::SrcAlpha),
+                    dst_factor: Some(webgpu::GpuBlendFactor::OneMinusSrcAlpha),
+                    operation: Some(webgpu::GpuBlendOperation::Add),
+                },
+                alpha: webgpu::GpuBlendComponent {
+                    src_factor: Some(webgpu::GpuBlendFactor::One),
+                    dst_factor: Some(webgpu::GpuBlendFactor::OneMinusSrcAlpha),
+                    operation: Some(webgpu::GpuBlendOperation::Add),
+                },
+            }),
+            write_mask: Some(0xF), // All color channels (R=0x1, G=0x2, B=0x4, A=0x8, ALL=0xF)
         })],
         constants: None,
     };
@@ -413,6 +425,7 @@ fn start_render_loop() {
                             // Calculate aspect ratio (width/height), avoiding division by zero
                             let aspect = if height > 0.0 { width / height } else { 1.0 };
                             size = (width, height, aspect, 0.0);
+                            canvas.request_set_size(Some(event.height), Some(event.width));
                             need_render = true;
                         }
                     }
