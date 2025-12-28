@@ -55,6 +55,8 @@ impl bindings::Guest for PluginBase {
     }
 }
 
+// TODO: most of these should come from the environment
+
 /// throttle the animation to a constant refresh rate
 const TARGET_FPS: u64 = 30; // events per second
 const THROTTLED_TARGET_FPS: u64 = 0; // events per second
