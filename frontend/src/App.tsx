@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
-import TerminalComponent from './useTerminal.js'
 import MonacoEditor from './components/MonacoEditor'
+import defaultShader from './assets/star.wgsl?raw';
 
 function BrowserCompatibilityError() {
   return (
@@ -27,14 +27,8 @@ function BrowserCompatibilityError() {
   )
 }
 
-const DEFAULT_SHADER = `@fragment
-fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-    return vec4<f32>(pos.xy / inputs.size.xy, 0.5, 1);
-}
-`;
-
 function App() {
-  const [text, setText] = useState(DEFAULT_SHADER)
+  const [text, setText] = useState(defaultShader)
   const [opacity, setOpacity] = useState(0.8)
   const wasmModuleRef = useRef<typeof import('@wasm/plugin-bg.js') | null>(null)
 
@@ -59,9 +53,10 @@ function App() {
         // Store the module in a ref so we can use it later
         wasmModuleRef.current = wasmModule
         
-        // The run function is async (marked with --async-exports 'run')
-        // note: this will never terminate
-        await wasmModule.run.run() 
+        // TODO: not great we're queueing this before `run` is called
+        //       ideally, this is passed through the wasi-cli environment
+        wasmModuleRef.current.queueShader(defaultShader);
+        wasmModule.run.run(); // note: this will never terminate
       } catch (error) {
         console.error('Failed to run WASM component:', error)
       }

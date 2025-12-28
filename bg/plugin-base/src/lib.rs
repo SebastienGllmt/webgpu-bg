@@ -47,7 +47,7 @@ static FORCE_RENDER_COND_VAR: Mutex<Option<loopback::ConditionVariable>> = Mutex
 impl bindings::Guest for PluginBase {
     fn queue_shader(shader_code: String) {
         *SHADER_STATE.lock().unwrap() = Some(shader_code);
-        // (should always be the case) only notify if the cond var has been initialized by run()
+        // only notify if the cond var has been initialized by run()
         let guard = FORCE_RENDER_COND_VAR.lock().unwrap();
         if let Some(ref cond_var) = guard.as_ref() {
             cond_var.notify();
@@ -57,8 +57,11 @@ impl bindings::Guest for PluginBase {
 
 /// throttle the animation to a constant refresh rate
 const TARGET_FPS: u64 = 30; // events per second
+const THROTTLED_TARGET_FPS: u64 = 0; // events per second
 const NS_PER_SECOND: u64 = 1_000_000_000;
 const DURATION_PER_FRAME: u64 = NS_PER_SECOND / TARGET_FPS;
+const THROTTLED_DURATION_PER_FRAME: u64 = if THROTTLED_TARGET_FPS == 0 { 0 } else { NS_PER_SECOND / THROTTLED_TARGET_FPS };
+const SECONDS_TO_THROTTLE: f32 = 5.0;
 
 // Standard uniform declaration (minimal - just size)
 // follows same format as WebGPU Shader toy
@@ -140,12 +143,9 @@ fn render_frame(
     pipeline: &webgpu::GpuRenderPipeline,
     size: (f32, f32, f32, f32),
     mouse_pos: (f32, f32, f32, f32),
-    initial_time: u64,
+    time: f32,
     frame_count: &i32,
 ) {
-    let time_delta = ::wasi::clocks::monotonic_clock::now() - initial_time;
-    // uniform expects time as a fractional "second" resolution
-    let time = time_delta as f32 / 1_000_000_000.0;
 
     let mut uniform_data = vec![0u8; UNIFORM_BUFFER_SIZE];
     
@@ -443,9 +443,24 @@ fn start_render_loop() {
         }
 
         if need_render {
+            let time_delta = ::wasi::clocks::monotonic_clock::now() - initial_time;
+            // uniform expects time as a fractional "second" resolution
+            let time = time_delta as f32 / 1_000_000_000.0;
+
             // start a timer for the next frame
-            frame_pollable = ::wasi::clocks::monotonic_clock::subscribe_duration(DURATION_PER_FRAME);
-            render_frame(&device, &graphics_context, &uniform_buffer, &bind_group, &pipeline, size, mouse_pos, initial_time, &frame_count);
+            // note: this is reset if a frame is triggered for another reason to avoid needless updates
+            frame_pollable = if time >= SECONDS_TO_THROTTLE {
+                if THROTTLED_TARGET_FPS == 0 {
+                    // largest value allowed by Javascript for setTimeout
+                    // represent 0 fps as one frame every ~25 days
+                    ::wasi::clocks::monotonic_clock::subscribe_duration(2147483647 * 1_000_000)
+                } else {
+                    ::wasi::clocks::monotonic_clock::subscribe_duration(THROTTLED_DURATION_PER_FRAME)
+                }
+            } else {
+                ::wasi::clocks::monotonic_clock::subscribe_duration(DURATION_PER_FRAME)
+            };
+            render_frame(&device, &graphics_context, &uniform_buffer, &bind_group, &pipeline, size, mouse_pos, time, &frame_count);
         }
     }
 }
