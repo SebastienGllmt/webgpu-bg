@@ -59,7 +59,7 @@ impl bindings::Guest for PluginBase {
 
 /// throttle the animation to a constant refresh rate
 const TARGET_FPS: u64 = 30; // events per second
-const THROTTLED_TARGET_FPS: u64 = 0; // events per second
+const THROTTLED_TARGET_FPS: u64 = 30; // events per second
 const NS_PER_SECOND: u64 = 1_000_000_000;
 const DURATION_PER_FRAME: u64 = NS_PER_SECOND / TARGET_FPS;
 const THROTTLED_DURATION_PER_FRAME: u64 = if THROTTLED_TARGET_FPS == 0 { 0 } else { NS_PER_SECOND / THROTTLED_TARGET_FPS };
